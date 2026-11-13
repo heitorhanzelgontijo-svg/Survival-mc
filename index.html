@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Sobrevivência Realista — Pixel Edition</title>
+<style>
+  * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%;
+    background: #0b0d10; color: #e6e1d6;
+    font-family: 'Courier New', Courier, monospace;
+    overflow: hidden;
+  }
+  #game-wrap {
+    position: relative; width: 100vw; height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    background: #06080a;
+  }
+  canvas#game {
+    width: 100%; height: 100%;
+    max-width: 177.78vh; max-height: 56.25vw;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #141a14;
+    cursor: crosshair;
+    box-shadow: 0 0 30px rgba(0,0,0,0.9);
+  }
+
+  /* HUD OVERLAY */
+  #hud {
+    position: absolute; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 10px;
+  }
+  .panel {
+    background: rgba(14, 17, 20, 0.84);
+    border: 2px solid #3a403d;
+    box-shadow: 0 3px 0 #07090b;
+    padding: 7px 10px;
+    pointer-events: auto;
+  }
+  .top-row {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;
+  }
+  #world-info {
+    font-size: 13px; line-height: 1.45; min-width: 210px;
+  }
+  #world-info .row { display: flex; justify-content: space-between; gap: 12px; }
+  #resources-bar {
+    display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; align-items: center;
+  }
+  .res-pill {
+    background: #1c2226; border: 1px solid #3c4448; padding: 3px 7px;
+  }
+  .top-btns { display: flex; gap: 6px; pointer-events: auto; }
+  button.px-btn {
+    background: #273033; color: #ece6d9; border: 2px solid #4e595d;
+    font-family: inherit; font-size: 12px; font-weight: bold;
+    padding: 5px 9px; cursor: pointer;
+    box-shadow: 0 2px 0 #0b0d0e;
+  }
+  button.px-btn:hover { background: #364347; border-color: #77878c; }
+  button.px-btn:active { transform: translateY(1px); }
+  button.px-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* VITALS & HOTBAR */
+  .bottom-row {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 10px;
+  }
+  #vitals {
+    width: 240px; font-size: 11px;
+  }
+  .stat-row {
+    display: flex; align-items: center; gap: 6px; margin-bottom: 4px;
+  }
+  .stat-label { width: 68px; color: #c7c2b6; }
+  .bar-bg {
+    flex: 1; height: 10px; background: #181a1c; border: 1px solid #3b4042;
+    position: relative;
+  }
+  .bar-fill { height: 100%; transition: width 0.15s linear; }
+  .stat-val { width: 42px; text-align: right; font-size: 10px; }
+  #statuses {
+    display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px;
+  }
+  .badge {
+    font-size: 10px; padding: 2px 5px; font-weight: bold; border: 1px solid;
+  }
+  .b-warn { background: #472814; border-color: #c96e2a; color: #ffbe85; }
+  .b-danger { background: #4a1414; border-color: #d13838; color: #ff9c9c; }
+  .b-good { background: #193b21; border-color: #469e58; color: #a7f0b6; }
+  .b-cold { background: #143247; border-color: #3a8ec9; color: #9cd6ff; }
+
+  #hotbar-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    flex: 1;
+  }
+  #context-prompt {
+    background: rgba(15, 19, 22, 0.9); border: 1px solid #5c6864;
+    padding: 4px 10px; font-size: 12px; color: #f7df94;
+    display: none; pointer-events: none;
+  }
+  #hotbar {
+    display: flex; flex-wrap: wrap; justify-content: center; gap: 4px;
+    padding: 5px; max-width: 680px;
+  }
+  .slot {
+    width: 50px; height: 52px; background: #191e21; border: 2px solid #3d4548;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; position: relative; font-size: 10px; text-align: center;
+    padding: 2px;
+  }
+  .slot:hover { border-color: #7c8b91; background: #232a2e; }
+  .slot.active { border-color: #e6b84c; background: #2e2a1e; }
+  .slot-key {
+    position: absolute; top: 1px; left: 3px; font-size: 9px; color: #8c9491;
+  }
+  .slot-qty {
+    position: absolute; bottom: 1px; right: 3px; font-size: 10px; font-weight: bold; color: #fff;
+  }
+  .slot-icon { font-size: 16px; line-height: 1; margin-bottom: 2px; }
+  .slot-name { font-size: 9px; line-height: 1; color: #cfc9bc; overflow: hidden; max-width: 46px; white-space: nowrap; }
+
+  /* LOG / TOAST */
+  #log-box {
+    width: 245px; font-size: 11px; max-height: 115px; overflow: hidden;
+    display: flex; flex-direction: column-reverse; gap: 3px;
+    pointer-events: none; text-align: right;
+  }
+  .log-msg {
+    background: rgba(10, 12, 14, 0.78); padding: 3px 6px;
+    border-right: 3px solid #6b7872;
+  }
+
+  /* MODALS */
+  .modal-backdrop {
+    position: absolute; inset: 0; background: rgba(5, 7, 9, 0.78);
+    display: none; align-items: center; justify-content: center;
+    z-index: 20; pointer-events: auto;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #14181b; border: 3px solid #4e5854;
+    width: min(560px, 94vw); max-height: 85vh; overflow-y: auto;
+    padding: 16px; box-shadow: 0 10px 40px #000;
+  }
+  .modal h2 { margin: 0 0 10px 0; font-size: 17px; color: #f0cf7b; border-bottom: 1px solid #333b3d; padding-bottom: 6px; }
+  .recipe-item {
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 10px; padding: 8px; border: 1px solid #2b3235; margin-bottom: 6px;
+    background: #1a2024;
+  }
+  .recipe-info strong { font-size: 13px; color: #f0ebe1; }
+  .recipe-info div { font-size: 11px; color: #a9b0ac; margin-top: 2px; }
+  .cost-ok { color: #83d991; }
+  .cost-no { color: #eb7c7c; }
+
+  /* OVERLAY START / GAMEOVER */
+  #screen-overlay {
+    position: absolute; inset: 0; background: rgba(7, 10, 12, 0.9);
+    display: flex; align-items: center; justify-content: center; z-index: 30;
+  }
+  .overlay-card {
+    background: #13171a; border: 3px solid #59635e; padding: 22px;
+    width: min(540px, 92vw); text-align: left;
+  }
+  .overlay-card h1 { margin: 0 0 10px 0; color: #e8c468; font-size: 22px; }
+  .overlay-card p, .overlay-card li { font-size: 13px; line-height: 1.5; color: #d1ccc0; }
+  .overlay-card ul { padding-left: 18px; margin: 10px 0 16px 0; }
+</style>
+</head>
+<body>
+<div id="game-wrap">
+  <canvas id="game" width="400" height="225"></canvas>
+
+  <div id="hud">
+    <div class="top-row">
+      <div id="world-info" class="panel">
+        <div class="row"><strong id="ui-day">Dia 1</strong><span id="ui-time">08:00</span></div>
+        <div class="row"><span id="ui-weather">☀️ Limpo</span><span id="ui-amb-temp">Amb: 22°C</span></div>
+        <div class="row" style="font-size:11px; color:#9da6a1;"><span>Controles: WASD / E / Espaço</span></div>
+      </div>
+
+      <div id="resources-bar" class="panel">
+        <div class="res-pill">🪵 Madeira: <strong id="r-wood">0</strong></div>
+        <div class="res-pill">🪨 Pedra: <strong id="r-stone">0</strong></div>
+        <div class="res-pill">🌿 Fibra: <strong id="r-fiber">0</strong></div>
+        <div class="res-pill">🥩 Carne Crua: <strong id="r-raw">0</strong></div>
+        <div class="res-pill">🦴 Pele: <strong id="r-pelt">0</strong></div>
+        <div class="res-pill">🌱 Erva: <strong id="r-herb">0</strong></div>
+      </div>
+
+      <div class="top-btns">
+        <button class="px-btn" onclick="toggleCraft()">[C] Criar</button>
+        <button class="px-btn" onclick="trySleep()">[R] Dormir</button>
+        <button class="px-btn" id="btn-mute" onclick="toggleMute()">🔊 Som</button>
+      </div>
+    </div>
+
+    <div class="bottom-row">
+      <div id="vitals" class="panel">
+        <div class="stat-row">
+          <span class="stat-label">❤️ Saúde</span>
+          <div class="bar-bg"><div id="b-hp" class="bar-fill" style="background:#c93b3b; width:100%"></div></div>
+          <span class="stat-val" id="v-hp">100</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">🌡️ Corpo</span>
+          <div class="bar-bg"><div id="b-temp" class="bar-fill" style="background:#e39b36; width:75%"></div></div>
+          <span class="stat-val" id="v-temp">36.8°C</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">🍖 Fome</span>
+          <div class="bar-bg"><div id="b-hunger" class="bar-fill" style="background:#b87635; width:100%"></div></div>
+          <span class="stat-val" id="v-hunger">100%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">💧 Sede</span>
+          <div class="bar-bg"><div id="b-thirst" class="bar-fill" style="background:#3788c9; width:100%"></div></div>
+          <span class="stat-val" id="v-thirst">100%</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">⚡ Energia</span>
+          <div class="bar-bg"><div id="b-energy" class="bar-fill" style="background:#53ad5a; width:100%"></div></div>
+          <span class="stat-val" id="v-energy">100%</span>
+        </div>
+        <div id="statuses"></div>
+      </div>
+
+      <div id="hotbar-wrap">
+        <div id="context-prompt"></div>
+        <div id="hotbar" class="panel"></div>
+      </div>
+
+      <div id="log-box"></div>
+    </div>
+  </div>
+
+  <!-- CRAFT MODAL -->
+  <div id="craft-modal" class="modal-backdrop">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🔨 Criação & Sobrevivência [C]</h2>
+        <button class="px-btn" onclick="toggleCraft()">Fechar</button>
+      </div>
+      <div id="craft-list"></div>
+    </div>
+  </div>
+
+  <!-- FIRE MODAL -->
+  <div id="fire-modal" class="modal-backdrop">
+    <div class="modal">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2>🔥 Fogueira</h2>
+        <button class="px-btn" onclick="closeFireModal()">Fechar</button>
+      </div>
+      <p id="fire-status-txt" style="font-size:12px; color:#d4c8aa; margin:8px 0;"></p>
+      <div id="fire-actions"></div>
+    </div>
+  </div>
+
+  <!-- START / GAME OVER OVERLAY -->
+  <div id="screen-overlay">
+    <div class="overlay-card" id="overlay-content">
+      <h1>🌲 SOBREVIVÊNCIA REALISTA</h1>
+      <p>Você está isolado na natureza selvagem. Não há barra de magia — apenas biologia, clima e preparo:</p>
+      <ul>
+        <li><strong>Água:</strong> Beber direto do rio causa infecção. Colete <em>Água Suja</em> com <b>[E]</b> na margem e ferva na fogueira.</li>
+        <li><strong>Comida:</strong> Frutas dão pouca energia. Cace coelhos/cervos e asse a carne na fogueira (carne crua adoece!).</li>
+        <li><strong>Frio & Chuva:</strong> À noite e na chuva a temperatura cai rápido. Ficar molhado derruba o calor corporal. Construa fogueira e abrigo!</li>
+        <li><strong>Perigos:</strong> Lobos caçam à noite, mas temem o fogo. Ferimentos causam sangramento (use bandagem).</li>
+        <li><strong>Controles:</strong> <b>WASD</b> mover | <b>Shift</b> correr | <b>Espaço / Clique</b> usar ferramenta/atacar | <b>E</b> interagir | <b>C</b> criar | <b>R</b> dormir | <b>1-9</b> itens.</li>
+      </ul>
+      <button class="px-btn" style="font-size:15px; padding:10px 18px;" onclick="startNewGame()">Iniciar Sobrevivência</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================================
+// 1. CONFIG & RENDERING SETUP (OPTIMIZED LOW-RES PIXEL ART)
+// ============================================================================
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+ctx.imageSmoothingEnabled = false;
+
+const VW = 400, VH = 225; // Internal pixel resolution (25x14 tiles of 16px)
+const TILE = 16;
+const MAP_W = 100, MAP_H = 100;
+
+// Offscreen lighting canvas (fast radial cutouts)
+const lightCanvas = document.createElement('canvas');
+lightCanvas.width = VW;
+lightCanvas.height = VH;
+const lctx = lightCanvas.getContext('2d');
+
+// ============================================================================
+// 2. RETRO WEB AUDIO SYNTH (ZERO ASSETS)
+// ============================================================================
+const AudioSys = {
+  ctx: null, muted: false,
+  init() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (AC) this.ctx = new AC();
+    }
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
+  },
+  play(type) {
+    if (this.muted || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    if (type === 'chop') {
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(160, now);
+      osc.frequency.exponentialRampToValueAtTime(55, now + 0.08);
+      gain.gain.setValueAtTime(0.18, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.08);
+      osc.start(now); osc.stop(now + 0.09);
+    } else if (type === 'pickup') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.setValueAtTime(620, now + 0.05);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.12);
+      osc.start(now); osc.stop(now + 0.13);
+    } else if (type === 'hurt') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(140, now);
+      osc.frequency.linearRampToValueAtTime(60, now + 0.18);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.18);
+      osc.start(now); osc.stop(now + 0.19);
+    } else if (type === 'craft') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(300, now);
+      osc.frequency.setValueAtTime(450, now + 0.07);
+      osc.frequency.setValueAtTime(600, now + 0.14);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.24);
+      osc.start(now); osc.stop(now + 0.25);
+    } else if (type === 'water') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(280, now);
+      osc.frequency.linearRampToValueAtTime(520, now + 0.12);
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+      osc.start(now); osc.stop(now + 0.16);
+    }
+  }
+};
+function toggleMute() {
+  AudioSys.muted = !AudioSys.muted;
+  document.getElementById('btn-mute').textContent = AudioSys.muted ? '🔇 Mudo' : '🔊 Som';
+}
+
+// ============================================================================
+// 3. PROCEDURAL PIXEL SPRITES (CACHED ONCE ON INIT)
+// ============================================================================
+const Sprites = {};
+function mkCanvas(w, h, drawFn) {
+  const c = document.createElement('canvas');
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.imageSmoothingEnabled = false;
+  drawFn(g, w, h);
+  return c;
+}
+function px(g, x, y, w, h, col) { g.fillStyle = col; g.fillRect(x, y, w, h); }
+
+function buildSprites() {
+  // Tiles
+  Sprites.grass0 = mkCanvas(16, 16, g => {
+    px(g,0,0,16,16,'#365934');
+    px(g,2,3,2,1,'#426b3e'); px(g,10,7,2,1,'#2d4a2b'); px(g,5,12,1,2,'#467342');
+    px(g,13,2,1,2,'#467342');
+  });
+  Sprites.grass1 = mkCanvas(16, 16, g => {
+    px(g,0,0,16,16,'#335431');
+    px(g,4,5,1,2,'#4a7846'); px(g,11,11,2,1,'#2b4729'); px(g,8,2,2,1,'#3f663b');
+  });
+  Sprites.sand = mkCanvas(16, 16, g => {
+    px(g,0,0,16,16,'#b09a68');
+    px(g,3,4,2,1,'#9e8858'); px(g,11,9,2,1,'#c2ac78'); px(g,6,13,1,1,'#8c774a');
+  });
+  Sprites.water0 = mkCanvas(16, 16, g => {
+    px(g,0,0,16,16,'#245978');
+    px(g,2,4,5,1,'#387da3'); px(g,9,11,5,1,'#387da3');
+  });
+  Sprites.water1 = mkCanvas(16, 16, g => {
+    px(g,0,0,16,16,'#245978');
+    px(g,4,6,5,1,'#3d87b0'); px(g,7,13,4,1,'#387da3');
+  });
+
+  // World Objects
+  Sprites.tree = mkCanvas(16, 24, g => {
+    // Trunk
+    px(g,6,15,4,8,'#5c3d26'); px(g,7,15,1,8,'#734e32');
+    // Canopy
+    px(g,2,6,12,11,'#1d4224');
+    px(g,3,3,10,12,'#26572f');
+    px(g,4,1,8,8,'#326e3c');
+    px(g,5,3,3,3,'#42874d');
+  });
+  Sprites.pine = mkCanvas(16, 24, g => {
+    px(g,7,17,2,6,'#4d331f');
+    px(g,2,14,12,4,'#183625');
+    px(g,3,10,10,5,'#1f452f');
+    px(g,4,6,8,5,'#27573c');
+    px(g,6,2,4,5,'#316b4a');
+  });
+  Sprites.rock = mkCanvas(16, 16, g => {
+    px(g,2,7,12,7,'#5c6166');
+    px(g,3,5,10,7,'#737980');
+    px(g,4,5,5,3,'#8e959c');
+    px(g,10,10,3,3,'#484d52');
+  });
+  Sprites.bush = mkCanvas(16, 16, g => {
+    px(g,2,6,12,8,'#244d26');
+    px(g,3,4,10,8,'#316634');
+    px(g,5,6,2,2,'#c93647'); px(g,10,8,2,2,'#c93647'); px(g,7,10,2,2,'#c93647');
+  });
+  Sprites.bushEmpty = mkCanvas(16, 16, g => {
+    px(g,2,6,12,8,'#244d26');
+    px(g,3,4,10,8,'#2d5e30');
+  });
+  Sprites.herb = mkCanvas(16, 16, g => {
+    px(g,5,9,2,5,'#3a8038'); px(g,9,8,2,6,'#4a9e48'); px(g,7,6,2,7,'#59b856');
+    px(g,6,5,1,2,'#d9f07a'); px(g,9,7,1,2,'#d9f07a');
+  });
+  Sprites.grassTuft = mkCanvas(16, 16, g => {
+    px(g,4,10,1,4,'#527d43'); px(g,6,8,1,6,'#679955'); px(g,9,9,1,5,'#527d43'); px(g,11,11,1,3,'#679955');
+  });
+
+  // Campfire
+  Sprites.fireOff = mkCanvas(16, 16, g => {
+    px(g,3,11,10,3,'#5c5f63');
+    px(g,5,9,6,3,'#593a22'); px(g,6,8,4,2,'#704a2c');
+  });
+  Sprites.fireOn0 = mkCanvas(16, 16, g => {
+    px(g,3,11,10,3,'#5c5f63');
+    px(g,5,10,6,2,'#4a2c16');
+    px(g,5,5,6,6,'#e35d1e');
+    px(g,6,3,4,6,'#f59b27');
+    px(g,7,5,2,4,'#ffea61');
+  });
+  Sprites.fireOn1 = mkCanvas(16, 16, g => {
+    px(g,3,11,10,3,'#5c5f63');
+    px(g,5,10,6,2,'#4a2c16');
+    px(g,4,6,8,5,'#e35d1e');
+    px(g,6,2,4,7,'#f59b27');
+    px(g,7,4,2,4,'#fff282');
+  });
+
+  // Shelter
+  Sprites.shelter = mkCanvas(24, 24, g => {
+    px(g,2,12,20,10,'#4a321f');
+    px(g,3,8,18,12,'#6e4d2e');
+    px(g,5,4,14,10,'#87603b');
+    px(g,7,2,10,5,'#9e7349');
+    px(g,9,13,6,9,'#1a140f'); // dark doorway
+  });
+
+  // Animals
+  Sprites.rabbit = mkCanvas(12, 12, g => {
+    px(g,3,5,6,5,'#bfb3a2');
+    px(g,7,3,3,4,'#d1c5b4');
+    px(g,7,1,1,3,'#d1c5b4'); px(g,9,1,1,3,'#bfb3a2');
+    px(g,9,4,1,1,'#222');
+  });
+  Sprites.deer = mkCanvas(16, 16, g => {
+    px(g,4,10,2,5,'#754d2d'); px(g,10,10,2,5,'#754d2d');
+    px(g,3,6,9,5,'#96643c');
+    px(g,10,3,4,4,'#a87246');
+    px(g,11,1,1,2,'#d9c9a8'); px(g,13,1,1,2,'#d9c9a8');
+    px(g,13,4,1,1,'#111');
+  });
+  Sprites.wolf = mkCanvas(16, 16, g => {
+    px(g,3,10,2,5,'#474c52'); px(g,10,10,2,5,'#474c52');
+    px(g,2,6,10,5,'#5e656e');
+    px(g,10,4,5,4,'#6d7580');
+    px(g,10,2,1,2,'#474c52'); px(g,13,2,1,2,'#474c52');
+    px(g,13,5,1,1,'#ff4a4a'); // glowing eye
+  });
+
+  // Player
+  Sprites.player = mkCanvas(16, 16, g => {
+    px(g,5,11,2,4,'#2d3e54'); px(g,9,11,2,4,'#2d3e54'); // legs
+    px(g,4,6,8,6,'#8c5735'); // jacket
+    px(g,5,1,6,5,'#e0b899'); // head
+    px(g,5,1,6,2,'#402b1d'); // hair
+    px(g,7,3,1,1,'#222'); px(g,9,3,1,1,'#222');
+  });
+  Sprites.playerCoat = mkCanvas(16, 16, g => {
+    px(g,5,11,2,4,'#2d3e54'); px(g,9,11,2,4,'#2d3e54');
+    px(g,3,6,10,6,'#5c432d'); // fur coat
+    px(g,4,6,8,2,'#a88a68'); // fur collar
+    px(g,5,1,6,5,'#e0b899');
+    px(g,5,1,6,2,'#402b1d');
+    px(g,7,3,1,1,'#222'); px(g,9,3,1,1,'#222');
+  });
+}
+
+// ============================================================================
+// 4. ITEMS & RECIPES DEFINITION
+// ============================================================================
+const ITEMS = {
+  hand:      { name: 'Mãos', icon: '✊', type: 'tool', dmg: 6, chop: 1 },
+  axe:       { name: 'Machado', icon: '🪓', type: 'tool', dmg: 14, chop: 3 },
+  spear:     { name: 'Lança', icon: '🔱', type: 'tool', dmg: 24, chop: 1, reach: 26 },
+  torch:     { name: 'Tocha', icon: '🔦', type: 'tool', dmg: 8, chop: 1, light: true },
+  berries:   { name: 'Frutas', icon: '🍒', type: 'food', hunger: 12, thirst: 8 },
+  cooked:    { name: 'Assada', icon: '🍖', type: 'food', hunger: 45, thirst: -4 },
+  waterClean:{ name: 'Ág.Limpa', icon: '💧', type: 'drink', thirst: 45 },
+  waterDirty:{ name: 'Ág.Suja', icon: '🟤', type: 'drink', thirst: 28, sickChance: 0.75 },
+  tea:       { name: 'Chá Erva', icon: '🍵', type: 'drink', thirst: 35, warmth: 1.4, cure: true },
+  bandage:   { name: 'Bandagem', icon: '🩹', type: 'med', hp: 15, stopBleed: true },
+  campfireKit:{name: 'Fogueira', icon: '🔥', type: 'place', placeType: 'campfire' },
+  shelterKit: {name: 'Abrigo', icon: '⛺', type: 'place', placeType: 'shelter' },
+};
+
+const RECIPES = [
+  { id: 'axe', name: 'Machado de Pedra', desc: 'Corta árvores 3x mais rápido e minera pedras.', cost: { wood: 2, stone: 2, fiber: 1 }, give: 'axe', qty: 1 },
+  { id: 'spear', name: 'Lança de Caça', desc: 'Longo alcance e alto dano contra animais e lobos.', cost: { wood: 2, stone: 1, fiber: 1 }, give: 'spear', qty: 1 },
+  { id: 'torch', name: 'Tocha', desc: 'Ilumina a noite e aquece levemente enquanto equipada.', cost: { wood: 1, fiber: 1 }, give: 'torch', qty: 1 },
+  { id: 'campfireKit', name: 'Kit Fogueira', desc: 'Aquece, cozinha carne, ferve água e afasta lobos.', cost: { wood: 4, stone: 3, fiber: 2 }, give: 'campfireKit', qty: 1 },
+  { id: 'shelterKit', name: 'Kit Abrigo', desc: 'Protege da chuva/vento e permite dormir com segurança.', cost: { wood: 6, fiber: 5 }, give: 'shelterKit', qty: 1 },
+  { id: 'bandage', name: 'Bandagem Limpa', desc: 'Estanca sangramento e restaura 15 de Saúde.', cost: { fiber: 2 }, give: 'bandage', qty: 1 },
+  { id: 'coat', name: 'Casaco de Pele', desc: 'Equipamento permanente: reduz perda de calor em 55%.', cost: { pelt: 3, fiber: 2 }, special: 'coat' }
+];
+
+// ============================================================================
+// 5. GAME STATE & PROCEDURAL WORLD GENERATION
+// ============================================================================
+let game = null;
+const keys = {};
+let mouse = { x: VW / 2, y: VH / 2, down: false };
+let lastTime = 0;
+let animFrameId = null;
+
+// Fast deterministic 2D noise
+function hash2(x, y, seed) {
+  let n = Math.sin(x * 127.1 + y * 311.7 + seed * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+function smoothNoise(x, y, seed) {
+  const ix = Math.floor(x), iy = Math.floor(y);
+  const fx = x - ix, fy = y - iy;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy);
+  const a = hash2(ix, iy, seed), b = hash2(ix + 1, iy, seed);
+  const c = hash2(ix, iy + 1, seed), d = hash2(ix + 1, iy + 1, seed);
+  return a + (b - a) * ux + (c - a) * uy + (a - b - c + d) * ux * uy;
+}
+
+function startNewGame() {
+  AudioSys.init();
+  document.getElementById('screen-overlay').style.display = 'none';
+
+  const seed = Math.floor(Math.random() * 10000);
+  const tiles = new Uint8Array(MAP_W * MAP_H); // 0=grass0, 1=grass1, 2=sand, 3=water
+  const objects = []; // trees, rocks, bushes, herbs, campfires, shelters
+  const objGrid = new Map(); // spatial lookup key "tx,ty" -> obj
+
+  for (let y = 0; y < MAP_H; y++) {
+    for (let x = 0; x < MAP_W; x++) {
+      // Elevation for lakes & coastline
+      const dx = (x - MAP_W / 2) / (MAP_W / 2);
+      const dy = (y - MAP_H / 2) / (MAP_H / 2);
+      const distEdge = Math.max(Math.abs(dx), Math.abs(dy));
+      let n = smoothNoise(x * 0.08, y * 0.08, seed) * 0.7 + smoothNoise(x * 0.2, y * 0.2, seed + 5) * 0.3;
+      n -= Math.pow(distEdge, 3.5) * 0.65;
+
+      const idx = y * MAP_W + x;
+      if (n < 0.27) tiles[idx] = 3; // water
+      else if (n < 0.33) tiles[idx] = 2; // sand
+      else tiles[idx] = (hash2(x, y, seed) > 0.5) ? 0 : 1;
+    }
+  }
+
+  // Find safe center spawn on grass
+  let sx = Math.floor(MAP_W / 2), sy = Math.floor(MAP_H / 2);
+  outer: for (let r = 0; r < 30; r++) {
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const tx = sx + dx, ty = sy + dy;
+        if (tx > 5 && ty > 5 && tx < MAP_W - 5 && ty < MAP_H - 5) {
+          if (tiles[ty * MAP_W + tx] <= 1) { sx = tx; sy = ty; break outer; }
+        }
+      }
+    }
+  }
+
+  // Populate objects
+  for (let y = 2; y < MAP_H - 2; y++) {
+    for (let x = 2; x < MAP_W - 2; x++) {
+      if (Math.hypot(x - sx, y - sy) < 3.5) continue;
+      const t = tiles[y * MAP_W + x];
+      const r = hash2(x, y, seed + 99);
+
+      if (t <= 1) {
+        let o = null;
+        if (r < 0.085) o = { type: r < 0.04 ? 'pine' : 'tree', hp: 30, maxHp: 30, solid: true };
+        else if (r < 0.115) o = { type: 'rock', hp: 40, maxHp: 40, solid: true };
+        else if (r < 0.145) o = { type: 'bush', hasBerries: true, regrow: 0, solid: false };
+        else if (r < 0.162) o = { type: 'herb', solid: false };
+        else if (r < 0.21) o = { type: 'tuft', solid: false };
+
+        if (o) {
+          o.tx = x; o.ty = y;
+          o.x = x * TILE + 8; o.y = y * TILE + 8;
+          objects.push(o);
+          objGrid.set(`${x},${y}`, o);
+        }
+      }
+    }
+  }
+
+  // Spawn Animals
+  const animals = [];
+  function spawnAnimal(type, count) {
+    for (let i = 0; i < count; i++) {
+      for (let tries = 0; tries < 25; tries++) {
+        const ax = 4 + Math.floor(Math.random() * (MAP_W - 8));
+        const ay = 4 + Math.floor(Math.random() * (MAP_H - 8));
+        if (tiles[ay * MAP_W + ax] <= 1 && !objGrid.has(`${ax},${ay}`) && Math.hypot(ax - sx, ay - sy) > 8) {
+          animals.push({
+            type, x: ax * TILE + 8, y: ay * TILE + 8,
+            vx: 0, vy: 0, dir: 1, timer: Math.random() * 2,
+            hp: type === 'rabbit' ? 12 : (type === 'deer' ? 35 : 42),
+            maxHp: type === 'rabbit' ? 12 : (type === 'deer' ? 35 : 42),
+            atkCd: 0
+          });
+          break;
+        }
+      }
+    }
+  }
+  spawnAnimal('rabbit', 28);
+  spawnAnimal('deer', 14);
+  spawnAnimal('wolf', 7);
+
+  // Pre-allocated particle pool
+  const particles = Array.from({ length: 140 }, () => ({ active: false, x: 0, y: 0, vx: 0, vy: 0, life: 0, maxLife: 1, col: '#fff', size: 2 }));
+
+  game = {
+    running: true,
+    day: 1,
+    time: 8 * 60, // minutes (0 - 1440), starts 08:00
+    dayLengthSec: 240, // 4 real minutes = 24 game hours
+    weather: 'clear', // clear, cloudy, rain
+    weatherTimer: 90,
+    ambientTemp: 22,
+    tiles, objects, objGrid, animals, particles,
+    player: {
+      x: sx * TILE + 8, y: sy * TILE + 8,
+      fx: 0, fy: 1, // facing vector
+      hp: 100, maxHp: 100,
+      temp: 36.8,
+      hunger: 100,
+      thirst: 100,
+      energy: 100,
+      wetness: 0, // 0..100
+      bleeding: false,
+      sick: false,
+      hasCoat: false,
+      atkCd: 0,
+      hurtCd: 0,
+      stepTimer: 0,
+      equipped: 'hand',
+      res: { wood: 0, stone: 0, fiber: 0, raw: 0, pelt: 0, herb: 0 },
+      inv: {
+        hand: 1, axe: 0, spear: 0, torch: 0,
+        berries: 2, cooked: 0, waterClean: 1, waterDirty: 0,
+        tea: 0, bandage: 1, campfireKit: 0, shelterKit: 0
+      }
+    },
+    activeFire: null,
+    craftOpen: false,
+    cam: { x: 0, y: 0 },
+    toastTimer: 0
+  };
+
+  addLog('Você acordou na floresta. Procure água, lenha e abrigo antes de escurecer.');
+  renderHotbar();
+  updateHUD();
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  lastTime = performance.now();
+  animFrameId = requestAnimationFrame(loop);
+}
+
+// ============================================================================
+// 6. INPUT & INTERACTION
+// ============================================================================
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  keys[k] = true;
+  if (!game || !game.running) return;
+
+  if (k === 'c') toggleCraft();
+  else if (k === 'e') interact();
+  else if (k === 'r') trySleep();
+  else if (k === ' ') { e.preventDefault(); primaryAction(); }
+  else if (k >= '1' && k <= '9') selectHotbarIndex(parseInt(k) - 1);
+  else if (k === 'escape') {
+    if (game.craftOpen) toggleCraft();
+    closeFireModal();
+  }
+});
+window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouse.x = ((e.clientX - rect.left) / rect.width) * VW;
+  mouse.y = ((e.clientY - rect.top) / rect.height) * VH;
+});
+canvas.addEventListener('mousedown', e => {
+  AudioSys.init();
+  if (!game || !game.running || game.craftOpen) return;
+  // Face toward mouse
+  const wx = mouse.x + game.cam.x, wy = mouse.y + game.cam.y;
+  const dx = wx - game.player.x, dy = wy - game.player.y;
+  const len = Math.hypot(dx, dy) || 1;
+  game.player.fx = dx / len; game.player.fy = dy / len;
+  primaryAction();
+});
+
+function addLog(msg, color = '#6b7872') {
+  const box = document.getElementById('log-box');
+  const div = document.createElement('div');
+  div.className = 'log-msg';
+  div.style.borderRightColor = color;
+  div.textContent = msg;
+  box.prepend(div);
+  while (box.children.length > 5) box.removeChild(box.lastChild);
+}
+
+function spawnParticles(x, y, col, count = 6, speed = 28) {
+  let spawned = 0;
+  for (let i = 0; i < game.particles.length && spawned < count; i++) {
+    const p = game.particles[i];
+    if (!p.active) {
+      p.active = true; p.x = x; p.y = y;
+      const a = Math.random() * Math.PI * 2;
+      const s = (0.3 + Math.random() * 0.7) * speed;
+      p.vx = Math.cos(a) * s; p.vy = Math.sin(a) * s;
+      p.life = 0.25 + Math.random() * 0.35; p.maxLife = p.life;
+      p.col = col; p.size = 1 + Math.floor(Math.random() * 2);
+      spawned++;
+    }
+  }
+}
+
+// ============================================================================
+// 7. PLAYER ACTIONS, CRAFTING, CAMPFIRE, SLEEP
+// ============================================================================
+function getVisibleHotbarKeys() {
+  const p = game.player;
+  return Object.keys(ITEMS).filter(k => k === 'hand' || p.inv[k] > 0);
+}
+
+function selectHotbarIndex(idx) {
+  const list = getVisibleHotbarKeys();
+  if (idx < list.length) useOrEquip(list[idx]);
+}
+
+function useOrEquip(id) {
+  const p = game.player;
+  const item = ITEMS[id];
+  if (!item) return;
+
+  if (item.type === 'tool' || item.type === 'place') {
+    p.equipped = id;
+    renderHotbar();
+  } else if (item.type === 'food') {
+    if (p.inv[id] <= 0) return;
+    p.inv[id]--;
+    p.hunger = Math.min(100, p.hunger + item.hunger);
+    p.thirst = Math.max(0, Math.min(100, p.thirst + (item.thirst || 0)));
+    AudioSys.play('pickup');
+    addLog(`Comeu ${item.name}.`, '#85c989');
+    renderHotbar();
+  } else if (item.type === 'drink') {
+    if (p.inv[id] <= 0) return;
+    p.inv[id]--;
+    p.thirst = Math.min(100, p.thirst + item.thirst);
+    if (item.warmth) p.temp = Math.min(37.5, p.temp + item.warmth);
+    if (item.cure && p.sick) {
+      p.sick = false;
+      addLog('O chá medicinal curou sua infecção!', '#85e095');
+    }
+    if (item.sickChance && Math.random() < item.sickChance) {
+      p.sick = true;
+      addLog('Água contaminada! Você contraiu uma infecção.', '#e06666');
+    } else {
+      addLog(`Bebeu ${item.name}.`, '#6cb9e8');
+    }
+    AudioSys.play('water');
+    renderHotbar();
+  } else if (item.type === 'med') {
+    if (p.inv[id] <= 0) return;
+    p.inv[id]--;
+    p.hp = Math.min(p.maxHp, p.hp + item.hp);
+    if (item.stopBleed) p.bleeding = false;
+    AudioSys.play('craft');
+    addLog('Bandagem aplicada. Sangramento estancado.', '#85e095');
+    renderHotbar();
+  }
+}
+
+function primaryAction() {
+  const p = game.player;
+  if (p.atkCd > 0) return;
+  const eq = ITEMS[p.equipped] || ITEMS.hand;
+
+  // Place structure
+  if (eq.type === 'place') {
+    const tx = Math.floor((p.x + p.fx * 18) / TILE);
+    const ty = Math.floor((p.y + p.fy * 18) / TILE);
+    if (tx < 1 || ty < 1 || tx >= MAP_W - 1 || ty >= MAP_H - 1) return;
+    if (game.tiles[ty * MAP_W + tx] === 3 || game.objGrid.has(`${tx},${ty}`)) {
+      addLog('Local bloqueado para construir!', '#e09955');
+      return;
+    }
+    p.inv[p.equipped]--;
+    const obj = eq.placeType === 'campfire'
+      ? { type: 'campfire', tx, ty, x: tx * TILE + 8, y: ty * TILE + 8, lit: true, fuel: 100, solid: true }
+      : { type: 'shelter', tx, ty, x: tx * TILE + 8, y: ty * TILE + 8, solid: true };
+    game.objects.push(obj);
+    game.objGrid.set(`${tx},${ty}`, obj);
+    p.equipped = 'hand';
+    AudioSys.play('craft');
+    addLog(`${eq.name} montada! Pressione [E] perto para usar.`, '#f0cf7b');
+    renderHotbar();
+    return;
+  }
+
+  p.atkCd = 0.28;
+  const reach = eq.reach || 18;
+  const hx = p.x + p.fx * (reach * 0.75);
+  const hy = p.y + p.fy * (reach * 0.75);
+
+  // 1. Hit Animals
+  for (let i = game.animals.length - 1; i >= 0; i--) {
+    const a = game.animals[i];
+    if (Math.hypot(a.x - hx, a.y - hy) < 15) {
+      a.hp -= eq.dmg;
+      a.vx = p.fx * 75; a.vy = p.fy * 75;
+      p.energy = Math.max(0, p.energy - 1.5);
+      spawnParticles(a.x, a.y, '#c93838', 7, 35);
+      AudioSys.play('chop');
+      if (a.hp <= 0) {
+        const meat = a.type === 'deer' ? 3 : 1;
+        const pelt = a.type === 'rabbit' ? 1 : 2;
+        p.res.raw += meat; p.res.pelt += pelt;
+        addLog(`Caçou! +${meat} Carne Crua, +${pelt} Pele.`, '#e8b666');
+        game.animals.splice(i, 1);
+      }
+      return;
+    }
+  }
+
+  // 2. Hit World Objects (trees, rocks, tufts)
+  const tx = Math.floor(hx / TILE), ty = Math.floor(hy / TILE);
+  const obj = game.objGrid.get(`${tx},${ty}`) || findNearestObj(hx, hy, 14);
+  if (obj && (obj.type === 'tree' || obj.type === 'pine' || obj.type === 'rock')) {
+    if (obj.type === 'rock' && p.equipped !== 'axe') {
+      addLog('Você precisa de um Machado para minerar pedras grandes.', '#d99a52');
+      // Still allow small chip? Better require axe or give tiny stone with bare hands slowly:
+      obj.hp -= 4;
+    } else {
+      obj.hp -= (obj.type === 'rock' ? 14 : 10 * eq.chop);
+    }
+    p.energy = Math.max(0, p.energy - 1.2);
+    AudioSys.play('chop');
+    spawnParticles(obj.x, obj.y, obj.type === 'rock' ? '#8c949c' : '#7a5434', 6, 30);
+
+    if (obj.hp <= 0) {
+      if (obj.type === 'rock') {
+        const st = 2 + Math.floor(Math.random() * 2);
+        p.res.stone += st;
+        addLog(`+${st} Pedra`, '#a8b0b8');
+      } else {
+        const wd = 3 + Math.floor(Math.random() * 2);
+        p.res.wood += wd; p.res.fiber += 1;
+        addLog(`+${wd} Madeira, +1 Fibra`, '#a37b4b');
+      }
+      removeObj(obj);
+    }
+    return;
+  }
+
+  // 3. Collect adjacent ground stone/fiber if hitting bush/tuft
+  if (obj && (obj.type === 'tuft' || obj.type === 'herb' || obj.type === 'bush')) {
+    interactWithObj(obj);
+  }
+}
+
+function findNearestObj(x, y, maxD) {
+  let best = null, bestD = maxD;
+  for (let i = 0; i < game.objects.length; i++) {
+    const o = game.objects[i];
+    const d = Math.hypot(o.x - x, o.y - y);
+    if (d < bestD) { bestD = d; best = o; }
+  }
+  return best;
+}
+
+function removeObj(obj) {
+  game.objGrid.delete(`${obj.tx},${obj.ty}`);
+  const idx = game.objects.indexOf(obj);
+  if (idx >= 0) game.objects.splice(idx, 1);
+}
+
+function interact() {
+  const p = game.player;
+  const near = findNearestObj(p.x, p.y, 24);
+  if (near) {
+    if (near.type === 'campfire') { openFireModal(near); return; }
+    if (near.type === 'shelter') { trySleep(near); return; }
+    if (interactWithObj(near)) return;
+  }
+
+  // Check water near player for collecting dirty water
+  const pts = [[0,0],[16,0],[-16,0],[0,16],[0,-16]];
+  for (const [ox, oy] of pts) {
+    const tx = Math.floor((p.x + ox) / TILE), ty = Math.floor((p.y + oy) / TILE);
+    if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H && game.tiles[ty * MAP_W + tx] === 3) {
+      if (p.inv.waterDirty + p.inv.waterClean >= 6) {
+        addLog('Você já carrega água suficiente (máx 6).', '#73b3de');
+      } else {
+        p.inv.waterDirty++;
+        AudioSys.play('water');
+        addLog('Coletou +1 Água Suja. Ferva na fogueira antes de beber!', '#c7a76d');
+        renderHotbar();
+      }
+      return;
+    }
+  }
+  addLog('Nada para interagir aqui.');
+}
+
+function interactWithObj(obj) {
+  const p = game.player;
+  if (obj.type === 'bush') {
+    if (obj.hasBerries) {
+      obj.hasBerries = false; obj.regrow = 90;
+      p.inv.berries += 2;
+      AudioSys.play('pickup');
+      addLog('+2 Frutas Silvestres', '#d65e6c');
+      renderHotbar();
+      return true;
+    }
+    return false;
+  }
+  if (obj.type === 'herb') {
+    p.res.herb += 1; p.res.fiber += 1;
+    removeObj(obj);
+    AudioSys.play('pickup');
+    addLog('+1 Erva Medicinal, +1 Fibra', '#7ed179');
+    return true;
+  }
+  if (obj.type === 'tuft') {
+    p.res.fiber += 1;
+    if (Math.random() < 0.25) { p.res.stone += 1; addLog('+1 Fibra, +1 Pedra solta', '#95ba7f'); }
+    else addLog('+1 Fibra Vegetal', '#95ba7f');
+    removeObj(obj);
+    AudioSys.play('pickup');
+    return true;
+  }
+  return false;
+}
+
+// CRAFTING MODAL
+function toggleCraft() {
+  if (!game || !game.running) return;
+  game.craftOpen = !game.craftOpen;
+  const m = document.getElementById('craft-modal');
+  m.classList.toggle('open', game.craftOpen);
+  if (game.craftOpen) renderCraftList();
+}
+
+function renderCraftList() {
+  const p = game.player;
+  const list = document.getElementById('craft-list');
+  const names = { wood: 'Madeira', stone: 'Pedra', fiber: 'Fibra', pelt: 'Pele' };
+  list.innerHTML = '';
+
+  RECIPES.forEach(r => {
+    if (r.special === 'coat' && p.hasCoat) return;
+    let can = true;
+    const costHtml = Object.entries(r.cost).map(([k, amt]) => {
+      const ok = p.res[k] >= amt;
+      if (!ok) can = false;
+      return `<span class="${ok ? 'cost-ok' : 'cost-no'}">${names[k]}: ${p.res[k]}/${amt}</span>`;
+    }).join(' • ');
+
+    const div = document.createElement('div');
+    div.className = 'recipe-item';
+    div.innerHTML = `
+      <div class="recipe-info">
+        <strong>${r.name}</strong>
+        <div>${r.desc}</div>
+        <div style="margin-top:4px;">${costHtml}</div>
+      </div>
+      <button class="px-btn" ${can ? '' : 'disabled'}>Criar</button>
+    `;
+    div.querySelector('button').onclick = () => {
+      Object.entries(r.cost).forEach(([k, amt]) => p.res[k] -= amt);
+      if (r.special === 'coat') {
+        p.hasCoat = true;
+        addLog('Casaco de Pele equipado! Proteção térmica aumentada.', '#f0cf7b');
+      } else {
+        p.inv[r.give] += r.qty;
+        addLog(`Criou ${r.name}!`, '#f0cf7b');
+      }
+      AudioSys.play('craft');
+      renderCraftList();
+      renderHotbar();
+    };
+    list.appendChild(div);
+  });
+}
+
+// CAMPFIRE MODAL
+function openFireModal(fire) {
+  game.activeFire = fire;
+  game.craftOpen = true;
+  document.getElementById('fire-modal').classList.add('open');
+  renderFireModal();
+}
+function closeFireModal() {
+  game.activeFire = null;
+  game.craftOpen = false;
+  document.getElementById('fire-modal').classList.remove('open');
+}
+function renderFireModal() {
+  const fire = game.activeFire, p = game.player;
+  if (!fire) return;
+  document.getElementById('fire-status-txt').textContent = fire.lit
+    ? `Estado: Acesa (Combustível: ${Math.ceil(fire.fuel)}%)`
+    : 'Estado: Apagada (Use Madeira/Fibra para reacender)';
+
+  const box = document.getElementById('fire-actions');
+  box.innerHTML = '';
+
+  const actions = [
+    {
+      title: '🥩 Assar Carne Crua', desc: `Você tem: ${p.res.raw}`,
+      ok: fire.lit && p.res.raw > 0,
+      fn: () => { p.res.raw--; p.inv.cooked++; addLog('Carne assada! +1 Carne Assada.', '#e69b50'); }
+    },
+    {
+      title: '💧 Ferver Água Suja', desc: `Você tem: ${p.inv.waterDirty}`,
+      ok: fire.lit && p.inv.waterDirty > 0,
+      fn: () => { p.inv.waterDirty--; p.inv.waterClean++; addLog('Água purificada! +1 Água Limpa.', '#6cc5f0'); }
+    },
+    {
+      title: '🍵 Preparar Chá Medicinal', desc: `1 Erva (${p.res.herb}) + 1 Água Limpa (${p.inv.waterClean})`,
+      ok: fire.lit && p.res.herb > 0 && p.inv.waterClean > 0,
+      fn: () => { p.res.herb--; p.inv.waterClean--; p.inv.tea++; addLog('Chá preparado! Cura infecção e aquece.', '#8ce089'); }
+    },
+    {
+      title: fire.lit ? '🪵 Adicionar Lenha (+45%)' : '🔥 Reacender Fogueira (1 Madeira + 1 Fibra)',
+      desc: `Madeira: ${p.res.wood} | Fibra: ${p.res.fiber}`,
+      ok: fire.lit ? p.res.wood > 0 : (p.res.wood > 0 && p.res.fiber > 0),
+      fn: () => {
+        p.res.wood--;
+        if (!fire.lit) { p.res.fiber--; fire.lit = true; fire.fuel = 55; }
+        else fire.fuel = Math.min(100, fire.fuel + 45);
+        addLog('Fogueira alimentada!', '#f59b27');
+      }
+    }
+  ];
+
+  actions.forEach(a => {
+    const div = document.createElement('div');
+    div.className = 'recipe-item';
+    div.innerHTML = `<div class="recipe-info"><strong>${a.title}</strong><div>${a.desc}</div></div><button class="px-btn" ${a.ok ? '' : 'disabled'}>Fazer</button>`;
+    div.querySelector('button').onclick = () => {
+      a.fn(); AudioSys.play('craft'); renderFireModal(); renderHotbar();
+    };
+    box.appendChild(div);
+  });
+}
+
+// SLEEPING
+function trySleep(nearShelter = null) {
+  if (!game || !game.running) return;
+  const p = game.player;
+  const shelter = nearShelter || game.objects.find(o => o.type === 'shelter' && Math.hypot(o.x - p.x, o.y - p.y) < 36);
+  const fire = game.objects.find(o => o.type === 'campfire' && o.lit && Math.hypot(o.x - p.x, o.y - p.y) < 55);
+
+  if (!shelter && game.weather === 'rain') {
+    addLog('Impossível dormir na chuva sem um Abrigo!', '#eb6a6a');
+    return;
+  }
+  if (!shelter && !fire && game.ambientTemp < 14) {
+    addLog('Muito frio para dormir sem Abrigo ou Fogueira! Você congelaria.', '#6cb7e8');
+    return;
+  }
+
+  // Advance 5 hours (300 game minutes)
+  const hrs = 5;
+  game.time += hrs * 60;
+  if (game.time >= 1440) { game.time -= 1440; game.day++; }
+
+  p.energy = Math.min(100, p.energy + (shelter ? 75 : 45));
+  p.hunger = Math.max(0, p.hunger - 14);
+  p.thirst = Math.max(0, p.thirst - 18);
+  if (shelter) { p.wetness = 0; p.hp = Math.min(p.maxHp, p.hp + 15); }
+  if (fire) { fire.fuel = Math.max(0, fire.fuel - 35); if (fire.fuel <= 0) fire.lit = false; }
+
+  AudioSys.play('pickup');
+  addLog(`Dormiu ${hrs} horas${shelter ? ' no abrigo' : ' ao relento'}.`, '#9fd4a3');
+}
+
+// ============================================================================
+// 8. SIMULATION LOOP (REALISTIC BIOLOGY, CLIMATE & AI)
+// ============================================================================
+function loop(now) {
+  const dt = Math.min(0.1, (now - lastTime) / 1000);
+  lastTime = now;
+  if (game.running && !game.craftOpen) update(dt);
+  render();
+  if (game.running) animFrameId = requestAnimationFrame(loop);
+}
+
+function update(dt) {
+  const p = game.player;
+
+  // 1. Time & Weather
+  const gameMinsPerSec = 1440 / game.dayLengthSec;
+  game.time += dt * gameMinsPerSec;
+  if (game.time >= 1440) {
+    game.time -= 1440; game.day++;
+    addLog(`Amanheceu o Dia ${game.day}!`, '#f2d079');
+  }
+
+  game.weatherTimer -= dt;
+  if (game.weatherTimer <= 0) {
+    const r = Math.random();
+    game.weather = r < 0.55 ? 'clear' : (r < 0.8 ? 'cloudy' : 'rain');
+    game.weatherTimer = 45 + Math.random() * 65;
+    if (game.weather === 'rain') addLog('Começou a chover! Procure abrigo ou proteja o calor.', '#74b7e3');
+  }
+
+  // Ambient Temperature Curve (Peaks at 14:00 ~25°C, Lows at 03:00 ~6°C)
+  const hr = game.time / 60;
+  let baseTemp = 15.5 + 9.5 * Math.sin(((hr - 8) / 24) * Math.PI * 2);
+  if (game.weather === 'cloudy') baseTemp -= 2.5;
+  if (game.weather === 'rain') baseTemp -= 6.0;
+  game.ambientTemp = baseTemp;
+
+  // 2. Player Movement
+  let mx = 0, my = 0;
+  if (keys['w'] || keys['arrowup']) my -= 1;
+  if (keys['s'] || keys['arrowdown']) my += 1;
+  if (keys['a'] || keys['arrowleft']) mx -= 1;
+  if (keys['d'] || keys['arrowright']) mx += 1;
+
+  const moving = mx !== 0 || my !== 0;
+  const sprinting = moving && keys['shift'] && p.energy > 8;
+  let speed = sprinting ? 74 : 46;
+  if (p.energy < 15) speed *= 0.65;
+  if (p.temp < 35.2) speed *= 0.8;
+
+  if (moving) {
+    const len = Math.hypot(mx, my);
+    mx /= len; my /= len;
+    p.fx = mx; p.fy = my;
+    moveEntity(p, mx * speed * dt, my * speed * dt, 5);
+    p.stepTimer -= dt;
+    if (p.stepTimer <= 0) p.stepTimer = sprinting ? 0.25 : 0.4;
+  }
+
+  if (p.atkCd > 0) p.atkCd -= dt;
+  if (p.hurtCd > 0) p.hurtCd -= dt;
+
+  // 3. Campfires, Shelters & Warmth
+  let nearFireWarmth = 0;
+  let sheltered = false;
+
+  for (let i = 0; i < game.objects.length; i++) {
+    const o = game.objects[i];
+    if (o.type === 'bush' && !o.hasBerries) {
+      o.regrow -= dt;
+      if (o.regrow <= 0) o.hasBerries = true;
+    } else if (o.type === 'shelter') {
+      if (Math.hypot(o.x - p.x, o.y - p.y) < 34) sheltered = true;
+    } else if (o.type === 'campfire' && o.lit) {
+      const rainDrain = game.weather === 'rain' ? 2.4 : 0.8;
+      o.fuel -= dt * rainDrain;
+      if (o.fuel <= 0) {
+        o.fuel = 0; o.lit = false;
+        addLog('Uma fogueira apagou.', '#b87654');
+      } else {
+        const d = Math.hypot(o.x - p.x, o.y - p.y);
+        if (d < 68) nearFireWarmth = Math.max(nearFireWarmth, (1 - d / 68) * 20);
+        if (Math.random() < 0.25) spawnParticles(o.x + (Math.random() - 0.5) * 4, o.y - 3, '#ffaa44', 1, 14);
+      }
+    }
+  }
+
+  // 4. Realistic Biology Simulation
+  // Wetness
+  if (game.weather === 'rain' && !sheltered) {
+    p.wetness = Math.min(100, p.wetness + dt * 6);
+  } else {
+    const dryRate = nearFireWarmth > 4 ? 12 : 2.5;
+    p.wetness = Math.max(0, p.wetness - dt * dryRate);
+  }
+
+  // Body Temperature (Normal: 36.8°C)
+  let effectiveTemp = game.ambientTemp + nearFireWarmth;
+  if (p.equipped === 'torch') effectiveTemp += 3.5;
+  if (sprinting) effectiveTemp += 2.5;
+  if (sheltered) effectiveTemp += 3.0;
+  if (p.wetness > 25) effectiveTemp -= (p.wetness / 100) * 8;
+
+  let tempTarget = 36.8;
+  if (effectiveTemp < 16) {
+    const deficit = (16 - effectiveTemp) * (p.hasCoat ? 0.45 : 1.0);
+    tempTarget = 36.8 - deficit * 0.25;
+  } else if (effectiveTemp > 36) {
+    tempTarget = 37.3;
+  }
+  p.temp += (tempTarget - p.temp) * dt * 0.12;
+  if (p.sick) p.temp = Math.min(38.8, p.temp + dt * 0.04);
+
+  // Hunger, Thirst & Energy drain
+  p.hunger = Math.max(0, p.hunger - dt * (sprinting ? 0.55 : 0.28));
+  p.thirst = Math.max(0, p.thirst - dt * (sprinting ? 0.78 : 0.36));
+  p.energy = Math.max(0, p.energy - dt * (sprinting ? 3.2 : (moving ? 0.35 : 0.1)));
+
+  // Health & Status Damage
+  let hpDelta = 0;
+  if (p.hunger <= 0) hpDelta -= 1.8;
+  if (p.thirst <= 0) hpDelta -= 2.4;
+  if (p.temp < 35.0) hpDelta -= (35.0 - p.temp) * 1.6;
+  if (p.bleeding) hpDelta -= 2.0;
+  if (p.sick) { hpDelta -= 0.9; p.thirst = Math.max(0, p.thirst - dt * 0.45); }
+
+  // Natural slow healing if well-fed, hydrated, warm and healthy
+  if (p.hunger > 65 && p.thirst > 65 && p.temp >= 36.2 && !p.bleeding && !p.sick) {
+    hpDelta += 0.6;
+  }
+
+  p.hp = Math.min(p.maxHp, p.hp + hpDelta * dt);
+  if (p.hp <= 0) {
+    let cause = 'Exaustão Múltipla';
+    if (p.temp < 35.0) cause = 'Hipotermia';
+    else if (p.bleeding) cause = 'Hemorragia / Ataque';
+    else if (p.thirst <= 0) cause = 'Desidratação Severa';
+    else if (p.hunger <= 0) cause = 'Inanição';
+    else if (p.sick) cause = 'Infecção Não Tratada';
+    gameOver(cause);
+    return;
+  }
+
+  // 5. Animals AI
+  const isNight = hr >= 19 || hr <= 5;
+  for (let i = 0; i < game.animals.length; i++) {
+    const a = game.animals[i];
+    if (a.atkCd > 0) a.atkCd -= dt;
+    const distP = Math.hypot(p.x - a.x, p.y - a.y);
+
+    // Check fire fear for wolves
+    let scaredOfFire = false;
+    if (a.type === 'wolf') {
+      for (const o of game.objects) {
+        if (o.type === 'campfire' && o.lit && Math.hypot(o.x - a.x, o.y - a.y) < 58) {
+          scaredOfFire = true;
+          const fx = a.x - o.x, fy = a.y - o.y, l = Math.hypot(fx, fy) || 1;
+          a.vx = (fx / l) * 55; a.vy = (fy / l) * 55;
+          break;
+        }
+      }
+    }
+
+    if (!scaredOfFire) {
+      if (a.type === 'wolf' && distP < (isNight ? 130 : 65)) {
+        // Chase player
+        const dx = p.x - a.x, dy = p.y - a.y, l = Math.hypot(dx, dy) || 1;
+        a.vx = (dx / l) * 44; a.vy = (dy / l) * 44;
+        if (distP < 12 && a.atkCd <= 0 && p.hurtCd <= 0) {
+          a.atkCd = 1.3; p.hurtCd = 0.6;
+          p.hp -= 16;
+          if (Math.random() < 0.45) { p.bleeding = true; addLog('Mordida de lobo! Você está sangrando!', '#e84a4a'); }
+          else addLog('Um lobo atacou você!', '#e84a4a');
+          AudioSys.play('hurt');
+          spawnParticles(p.x, p.y, '#d63333', 8, 40);
+        }
+      } else if ((a.type === 'rabbit' || a.type === 'deer') && distP < 56) {
+        // Flee from player
+        const dx = a.x - p.x, dy = a.y - p.y, l = Math.hypot(dx, dy) || 1;
+        const spd = a.type === 'rabbit' ? 48 : 54;
+        a.vx = (dx / l) * spd; a.vy = (dy / l) * spd;
+      } else {
+        a.timer -= dt;
+        if (a.timer <= 0) {
+          a.timer = 1.5 + Math.random() * 3;
+          if (Math.random() < 0.55) { a.vx = 0; a.vy = 0; }
+          else {
+            const ang = Math.random() * Math.PI * 2;
+            a.vx = Math.cos(ang) * 16; a.vy = Math.sin(ang) * 16;
+          }
+        }
+      }
+    }
+
+    if (a.vx !== 0 || a.vy !== 0) {
+      moveEntity(a, a.vx * dt, a.vy * dt, 4);
+      a.vx *= 0.94; a.vy *= 0.94;
+    }
+  }
+
+  // 6. Particles
+  for (let i = 0; i < game.particles.length; i++) {
+    const pt = game.particles[i];
+    if (!pt.active) continue;
+    pt.x += pt.vx * dt; pt.y += pt.vy * dt;
+    pt.life -= dt;
+    if (pt.life <= 0) pt.active = false;
+  }
+
+  // 7. Camera smoothly follows player
+  game.cam.x = Math.max(0, Math.min(MAP_W * TILE - VW, p.x - VW / 2));
+  game.cam.y = Math.max(0, Math.min(MAP_H * TILE - VH, p.y - VH / 2));
+
+  // Throttle HUD updates slightly for zero DOM overhead
+  game.toastTimer += dt;
+  if (game.toastTimer >= 0.12) {
+    game.toastTimer = 0;
+    updateHUD();
+  }
+}
+
+function moveEntity(ent, dx, dy, rad) {
+  const nx = ent.x + dx;
+  if (!isBlocked(nx, ent.y, rad)) ent.x = nx;
+  const ny = ent.y + dy;
+  if (!isBlocked(ent.x, ny, rad)) ent.y = ny;
+  ent.x = Math.max(TILE, Math.min(MAP_W * TILE - TILE, ent.x));
+  ent.y = Math.max(TILE, Math.min(MAP_H * TILE - TILE, ent.y));
+}
+
+function isBlocked(x, y, rad) {
+  const pts = [[x - rad, y - rad], [x + rad, y - rad], [x - rad, y + rad], [x + rad, y + rad]];
+  for (const [px, py] of pts) {
+    const tx = Math.floor(px / TILE), ty = Math.floor(py / TILE);
+    if (tx < 0 || ty < 0 || tx >= MAP_W || ty >= MAP_H) return true;
+    if (game.tiles[ty * MAP_W + tx] === 3) return true;
+    const obj = game.objGrid.get(`${tx},${ty}`);
+    if (obj && obj.solid && Math.hypot(obj.x - px, obj.y - py) < 7) return true;
+  }
+  return false;
+}
+
+// ============================================================================
+// 9. FAST RENDERER
+// ============================================================================
+function render() {
+  if (!game) return;
+  const cx = Math.floor(game.cam.x), cy = Math.floor(game.cam.y);
+  const startTx = Math.max(0, Math.floor(cx / TILE));
+  const endTx = Math.min(MAP_W - 1, Math.ceil((cx + VW) / TILE));
+  const startTy = Math.max(0, Math.floor(cy / TILE));
+  const endTy = Math.min(MAP_H - 1, Math.ceil((cy + VH) / TILE));
+  const waterFrame = Math.floor(performance.now() / 450) % 2;
+
+  // 1. Draw visible terrain tiles
+  for (let ty = startTy; ty <= endTy; ty++) {
+    for (let tx = startTx; tx <= endTx; tx++) {
+      const t = game.tiles[ty * MAP_W + tx];
+      let sp = Sprites.grass0;
+      if (t === 1) sp = Sprites.grass1;
+      else if (t === 2) sp = Sprites.sand;
+      else if (t === 3) sp = waterFrame ? Sprites.water0 : Sprites.water1;
+      ctx.drawImage(sp, tx * TILE - cx, ty * TILE - cy);
+    }
+  }
+
+  // 2. Collect visible drawable entities & Y-sort for depth
+  const drawList = [];
+  for (let i = 0; i < game.objects.length; i++) {
+    const o = game.objects[i];
+    if (o.x >= cx - 24 && o.x <= cx + VW + 24 && o.y >= cy - 24 && o.y <= cy + VH + 24) {
+      drawList.push({ y: o.y, kind: 'obj', ref: o });
+    }
+  }
+  for (let i = 0; i < game.animals.length; i++) {
+    const a = game.animals[i];
+    if (a.x >= cx - 16 && a.x <= cx + VW + 16 && a.y >= cy - 16 && a.y <= cy + VH + 16) {
+      drawList.push({ y: a.y, kind: 'ani', ref: a });
+    }
+  }
+  drawList.push({ y: game.player.y, kind: 'player', ref: game.player });
+  drawList.sort((a, b) => a.y - b.y);
+
+  const fireFrame = Math.floor(performance.now() / 160) % 2;
+
+  for (let i = 0; i < drawList.length; i++) {
+    const d = drawList[i];
+    if (d.kind === 'obj') {
+      const o = d.ref;
+      const sx = Math.round(o.x - cx), sy = Math.round(o.y - cy);
+      if (o.type === 'tree') ctx.drawImage(Sprites.tree, sx - 8, sy - 19);
+      else if (o.type === 'pine') ctx.drawImage(Sprites.pine, sx - 8, sy - 19);
+      else if (o.type === 'rock') ctx.drawImage(Sprites.rock, sx - 8, sy - 9);
+      else if (o.type === 'bush') ctx.drawImage(o.hasBerries ? Sprites.bush : Sprites.bushEmpty, sx - 8, sy - 9);
+      else if (o.type === 'herb') ctx.drawImage(Sprites.herb, sx - 8, sy - 9);
+      else if (o.type === 'tuft') ctx.drawImage(Sprites.grassTuft, sx - 8, sy - 9);
+      else if (o.type === 'shelter') ctx.drawImage(Sprites.shelter, sx - 12, sy - 16);
+      else if (o.type === 'campfire') {
+        const sp = o.lit ? (fireFrame ? Sprites.fireOn0 : Sprites.fireOn1) : Sprites.fireOff;
+        ctx.drawImage(sp, sx - 8, sy - 9);
+      }
+    } else if (d.kind === 'ani') {
+      const a = d.ref;
+      const sx = Math.round(a.x - cx), sy = Math.round(a.y - cy);
+      if (a.type === 'rabbit') ctx.drawImage(Sprites.rabbit, sx - 6, sy - 8);
+      else if (a.type === 'deer') ctx.drawImage(Sprites.deer, sx - 8, sy - 11);
+      else ctx.drawImage(Sprites.wolf, sx - 8, sy - 11);
+    } else {
+      const p = d.ref;
+      const sx = Math.round(p.x - cx), sy = Math.round(p.y - cy);
+      ctx.drawImage(p.hasCoat ? Sprites.playerCoat : Sprites.player, sx - 8, sy - 11);
+      // Equipped tool indicator dot/pixel
+      if (p.equipped === 'torch') {
+        ctx.fillStyle = '#ffaa33';
+        ctx.fillRect(sx + Math.round(p.fx * 7), sy - 5 + Math.round(p.fy * 5), 2, 2);
+      }
+    }
+  }
+
+  // 3. Particles
+  for (let i = 0; i < game.particles.length; i++) {
+    const pt = game.particles[i];
+    if (!pt.active) continue;
+    ctx.fillStyle = pt.col;
+    ctx.fillRect(Math.round(pt.x - cx), Math.round(pt.y - cy), pt.size, pt.size);
+  }
+
+  // 4. Rain Overlay
+  if (game.weather === 'rain') {
+    ctx.fillStyle = 'rgba(130, 175, 220, 0.45)';
+    const t = performance.now() * 0.35;
+    for (let i = 0; i < 65; i++) {
+      const rx = ((i * 73 + t * 0.4) % VW);
+      const ry = ((i * 41 + t * 1.5) % VH);
+      ctx.fillRect(rx, ry, 1, 5);
+    }
+  }
+
+  // 5. Day/Night Dynamic Lighting Layer
+  const hr = game.time / 60;
+  let darkness = 0;
+  if (hr >= 19.5 || hr <= 4.5) darkness = 0.82;
+  else if (hr > 17.5 && hr < 19.5) darkness = ((hr - 17.5) / 2) * 0.82;
+  else if (hr > 4.5 && hr < 6.5) darkness = (1 - (hr - 4.5) / 2) * 0.82;
+  if (game.weather === 'rain') darkness = Math.min(0.86, darkness + 0.12);
+
+  if (darkness > 0.02) {
+    lctx.globalCompositeOperation = 'source-over';
+    lctx.clearRect(0, 0, VW, VH);
+    lctx.fillStyle = `rgba(6, 10, 24, ${darkness.toFixed(2)})`;
+    lctx.fillRect(0, 0, VW, VH);
+
+    lctx.globalCompositeOperation = 'destination-out';
+    // Player small personal vision / torch
+    const pr = game.player.equipped === 'torch' ? 75 : 28;
+    punchLight(game.player.x - cx, game.player.y - cy, pr);
+
+    // Campfire lights
+    for (let i = 0; i < game.objects.length; i++) {
+      const o = game.objects[i];
+      if (o.type === 'campfire' && o.lit) {
+        const lx = o.x - cx, ly = o.y - cy;
+        if (lx > -90 && lx < VW + 90 && ly > -90 && ly < VH + 90) {
+          punchLight(lx, ly, 82 + Math.sin(performance.now() * 0.01) * 4);
+        }
+      }
+    }
+    ctx.drawImage(lightCanvas, 0, 0);
+  }
+}
+
+function punchLight(x, y, r) {
+  const grad = lctx.createRadialGradient(x, y, r * 0.15, x, y, r);
+  grad.addColorStop(0, 'rgba(0,0,0,1)');
+  grad.addColorStop(1, 'rgba(0,0,0,0)');
+  lctx.fillStyle = grad;
+  lctx.beginPath();
+  lctx.arc(x, y, r, 0, Math.PI * 2);
+  lctx.fill();
+}
+
+// ============================================================================
+// 10. HUD & UI SYNC
+// ============================================================================
+function updateHUD() {
+  const p = game.player;
+  const hh = String(Math.floor(game.time / 60)).padStart(2, '0');
+  const mm = String(Math.floor(game.time % 60)).padStart(2, '0');
+  document.getElementById('ui-day').textContent = `Dia ${game.day}`;
+  document.getElementById('ui-time').textContent = `${hh}:${mm}`;
+  const wMap = { clear: '☀️ Limpo', cloudy: '☁️ Nublado', rain: '🌧️ Chuva' };
+  document.getElementById('ui-weather').textContent = wMap[game.weather];
+  document.getElementById('ui-amb-temp').textContent = `Amb: ${Math.round(game.ambientTemp)}°C`;
+
+  document.getElementById('r-wood').textContent = p.res.wood;
+  document.getElementById('r-stone').textContent = p.res.stone;
+  document.getElementById('r-fiber').textContent = p.res.fiber;
+  document.getElementById('r-raw').textContent = p.res.raw;
+  document.getElementById('r-pelt').textContent = p.res.pelt;
+  document.getElementById('r-herb').textContent = p.res.herb;
+
+  // Bars
+  document.getElementById('b-hp').style.width = `${Math.max(0, p.hp)}%`;
+  document.getElementById('v-hp').textContent = Math.ceil(p.hp);
+
+  const tempPct = Math.max(0, Math.min(100, ((p.temp - 33) / 5.5) * 100));
+  document.getElementById('b-temp').style.width = `${tempPct}%`;
+  document.getElementById('b-temp').style.background = p.temp < 35.4 ? '#4aa3e3' : (p.temp > 37.6 ? '#e3564a' : '#e39b36');
+  document.getElementById('v-temp').textContent = `${p.temp.toFixed(1)}°C`;
+
+  document.getElementById('b-hunger').style.width = `${p.hunger}%`;
+  document.getElementById('v-hunger').textContent = `${Math.ceil(p.hunger)}%`;
+  document.getElementById('b-thirst').style.width = `${p.thirst}%`;
+  document.getElementById('v-thirst').textContent = `${Math.ceil(p.thirst)}%`;
+  document.getElementById('b-energy').style.width = `${p.energy}%`;
+  document.getElementById('v-energy').textContent = `${Math.ceil(p.energy)}%`;
+
+  // Status badges
+  const st = document.getElementById('statuses');
+  let badges = '';
+  if (p.bleeding) badges += `<span class="badge b-danger">Sangrando</span>`;
+  if (p.sick) badges += `<span class="badge b-danger">Infecção</span>`;
+  if (p.temp < 35.3) badges += `<span class="badge b-cold">Hipotermia</span>`;
+  if (p.wetness > 25) badges += `<span class="badge b-cold">Molhado ${Math.round(p.wetness)}%</span>`;
+  if (p.energy < 20) badges += `<span class="badge b-warn">Exausto</span>`;
+  if (p.hasCoat) badges += `<span class="badge b-good">Casaco</span>`;
+  st.innerHTML = badges;
+
+  // Context prompt
+  const prompt = document.getElementById('context-prompt');
+  const near = findNearestObj(p.x, p.y, 24);
+  let msg = '';
+  if (near) {
+    if (near.type === 'campfire') msg = '[E] Usar Fogueira (Assar / Ferver / Lenha)';
+    else if (near.type === 'shelter') msg = '[E] Dormir no Abrigo';
+    else if (near.type === 'bush' && near.hasBerries) msg = '[E] Colher Frutas';
+    else if (near.type === 'herb') msg = '[E] Colher Erva Medicinal';
+    else if (near.type === 'tuft') msg = '[E] Coletar Fibra';
+  } else {
+    const pts = [[0,0],[16,0],[-16,0],[0,16],[0,-16]];
+    for (const [ox, oy] of pts) {
+      const tx = Math.floor((p.x + ox) / TILE), ty = Math.floor((p.y + oy) / TILE);
+      if (tx >= 0 && ty >= 0 && tx < MAP_W && ty < MAP_H && game.tiles[ty * MAP_W + tx] === 3) {
+        msg = '[E] Coletar Água do Rio'; break;
+      }
+    }
+  }
+  prompt.style.display = msg ? 'block' : 'none';
+  prompt.textContent = msg;
+}
+
+function renderHotbar() {
+  const hb = document.getElementById('hotbar');
+  const p = game.player;
+  const list = getVisibleHotbarKeys();
+  hb.innerHTML = '';
+
+  list.forEach((id, i) => {
+    const item = ITEMS[id];
+    const div = document.createElement('div');
+    div.className = 'slot' + (p.equipped === id ? ' active' : '');
+    const keyNum = i < 9 ? i + 1 : '';
+    const qtyHtml = (id !== 'hand' && (item.type !== 'tool' || p.inv[id] > 1))
+      ? `<span class="slot-qty">${p.inv[id]}</span>` : '';
+    div.innerHTML = `
+      <span class="slot-key">${keyNum}</span>
+      <span class="slot-icon">${item.icon}</span>
+      <span class="slot-name">${item.name}</span>
+      ${qtyHtml}
+    `;
+    div.onclick = () => useOrEquip(id);
+    hb.appendChild(div);
+  });
+}
+
+function gameOver(cause) {
+  game.running = false;
+  closeFireModal();
+  if (game.craftOpen) toggleCraft();
+  const ov = document.getElementById('screen-overlay');
+  ov.style.display = 'flex';
+  document.getElementById('overlay-content').innerHTML = `
+    <h1 style="color:#e35959;">💀 VOCÊ NÃO SOBREVIVEU</h1>
+    <p><strong>Causa da morte:</strong> ${cause}</p>
+    <p><strong>Tempo sobrevivido:</strong> ${game.day} dia(s)</p>
+    <p style="color:#a9b0ac;">Dica: Ferva água antes de beber, construa uma fogueira antes do anoitecer e mantenha bandagens contra lobos.</p>
+    <button class="px-btn" style="font-size:15px; padding:10px 18px; margin-top:10px;" onclick="startNewGame()">Tentar Novamente</button>
+  `;
+}
+
+// Initialize cached sprites on page load
+buildSprites();
+</script>
+</body>
+</html>
